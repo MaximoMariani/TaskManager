@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Task Manager — Equipo</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<!-- ====== LOGIN SCREEN ====== -->
+<div id="login-screen" class="hidden">
+  <div class="login-wrap">
+    <div class="login-box">
+      <div class="login-logo">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <rect width="36" height="36" rx="10" fill="#1a1a2e"/>
+          <rect x="8" y="10" width="8" height="16" rx="2" fill="#4f8ef7"/>
+          <rect x="20" y="8" width="8" height="12" rx="2" fill="#7c3aed"/>
+          <rect x="20" y="23" width="8" height="5" rx="2" fill="#4f8ef7" opacity="0.5"/>
+        </svg>
+        <span>TaskBoard</span>
+      </div>
+      <h1>Acceso del equipo</h1>
+      <p class="login-sub">Ingresá la contraseña del equipo para continuar</p>
+      <form id="login-form">
+        <input type="password" id="login-password" placeholder="Contraseña del equipo" autocomplete="current-password" required />
+        <div id="login-error" class="login-error hidden">Contraseña incorrecta. Intentá de nuevo.</div>
+        <button type="submit" id="login-btn">Ingresar</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ====== APP SHELL ====== -->
+<div id="app-shell" class="hidden">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
+          <rect width="36" height="36" rx="10" fill="#1a1a2e"/>
+          <rect x="8" y="10" width="8" height="16" rx="2" fill="#4f8ef7"/>
+          <rect x="20" y="8" width="8" height="12" rx="2" fill="#7c3aed"/>
+          <rect x="20" y="23" width="8" height="5" rx="2" fill="#4f8ef7" opacity="0.5"/>
+        </svg>
+        <span class="logo-text">TaskBoard</span>
+      </div>
+      <nav class="topnav">
+        <a href="#" class="nav-link active" data-view="board">Tablero</a>
+        <a href="#" class="nav-link" data-view="dashboard">Dashboard</a>
+      </nav>
+    </div>
+    <div class="topbar-right">
+      <span id="sync-indicator" class="sync-indicator sync-ok">● Sincronizado</span>
+      <button class="btn-new-task" id="btn-new-task">+ Nueva tarea</button>
+      <button class="btn-logout" id="btn-logout">Salir</button>
+    </div>
+  </header>
+
+  <!-- BOARD VIEW -->
+  <div id="view-board" class="view">
+    <!-- Filters -->
+    <div class="filters-bar">
+      <input type="text" id="search-input" placeholder="Buscar tareas…" class="filter-search" />
+      <select id="filter-area" class="filter-select">
+        <option value="">Todas las áreas</option>
+        <option value="PRODUCCION">Producción</option>
+        <option value="CONTENIDO">Contenido</option>
+        <option value="DISENO">Diseño</option>
+        <option value="ADMIN">Admin</option>
+      </select>
+      <input type="text" id="filter-assignee" placeholder="Asignado a…" class="filter-input" />
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="board">
+      <div class="board-col" id="col-TODO" data-status="TODO">
+        <div class="col-header">
+          <span class="col-title">TODO</span>
+          <span class="col-count" id="count-TODO">0</span>
+        </div>
+        <div class="cards-area" id="cards-TODO"></div>
+      </div>
+      <div class="board-col" id="col-DOING" data-status="DOING">
+        <div class="col-header">
+          <span class="col-title">DOING</span>
+          <span class="col-count" id="count-DOING">0</span>
+        </div>
+        <div class="cards-area" id="cards-DOING"></div>
+      </div>
+      <div class="board-col" id="col-DONE" data-status="DONE">
+        <div class="col-header">
+          <span class="col-title">DONE</span>
+          <span class="col-count" id="count-DONE">0</span>
+        </div>
+        <div class="cards-area" id="cards-DONE"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="view-dashboard" class="view hidden">
+    <div class="dashboard-wrap">
+      <h2 class="dash-title">Dashboard</h2>
+
+      <!-- Summary cards -->
+      <div class="dash-cards">
+        <div class="dash-card">
+          <div class="dash-card-label">Total</div>
+          <div class="dash-card-val" id="d-total">—</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">Por hacer</div>
+          <div class="dash-card-val todo-color" id="d-todo">—</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">En progreso</div>
+          <div class="dash-card-val doing-color" id="d-doing">—</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">Completadas</div>
+          <div class="dash-card-val done-color" id="d-done">—</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-label">Vencidas</div>
+          <div class="dash-card-val overdue-color" id="d-overdue">—</div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="dash-charts">
+        <div class="dash-chart-box">
+          <h3>Tareas por área</h3>
+          <canvas id="chart-area" height="200"></canvas>
+        </div>
+        <div class="dash-chart-box">
+          <h3>Tareas por estado</h3>
+          <canvas id="chart-status" height="200"></canvas>
+        </div>
+      </div>
+
+      <!-- Lists row -->
+      <div class="dash-lists">
+        <div class="dash-list-box">
+          <h3>Top prioridades activas</h3>
+          <ul id="list-priority" class="dash-list"></ul>
+        </div>
+        <div class="dash-list-box">
+          <h3>Más cargados</h3>
+          <ul id="list-assignees" class="dash-list"></ul>
+        </div>
+        <div class="dash-list-box">
+          <h3>Creadas últimos 7 días</h3>
+          <ul id="list-recent" class="dash-list"></ul>
+        </div>
+      </div>
+
+      <!-- Availability section -->
+      <div class="dash-availability">
+        <h3>Disponibilidad del equipo</h3>
+        <div id="assign-top3" class="assign-top3"></div>
+        <table class="avail-table" id="avail-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Estado</th>
+              <th>Tareas activas</th>
+              <th>Completadas (7d)</th>
+            </tr>
+          </thead>
+          <tbody id="avail-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app-shell -->
+
+<!-- ====== TASK MODAL ====== -->
+<div id="task-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="modal-title">Nueva tarea</h2>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <form id="task-form">
+      <input type="hidden" id="task-id" />
+      <div class="form-group">
+        <label>Título <span class="required">*</span></label>
+        <input type="text" id="task-title" placeholder="¿Qué hay que hacer?" required />
+      </div>
+      <div class="form-group">
+        <label>Descripción</label>
+        <textarea id="task-desc" rows="3" placeholder="Detalles opcionales…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Área</label>
+          <select id="task-area">
+            <option value="PRODUCCION">Producción</option>
+            <option value="CONTENIDO">Contenido</option>
+            <option value="DISENO">Diseño</option>
+            <option value="ADMIN" selected>Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="task-status">
+            <option value="TODO" selected>TODO</option>
+            <option value="DOING">DOING</option>
+            <option value="DONE">DONE</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Asignado a</label>
+          <input type="text" id="task-assigned" placeholder="Nombre…" />
+        </div>
+        <div class="form-group">
+          <label>Creado por</label>
+          <input type="text" id="task-created-by" placeholder="Tu nombre…" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Fecha objetivo</label>
+        <input type="date" id="task-due" />
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" id="modal-cancel">Cancelar</button>
+        <button type="submit" class="btn-primary" id="task-submit">Guardar tarea</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ====== CONFIRM MODAL ====== -->
+<div id="confirm-modal" class="modal-overlay hidden">
+  <div class="modal-box modal-box-sm">
+    <h3>¿Eliminar tarea?</h3>
+    <p>Esta acción no se puede deshacer.</p>
+    <div class="form-actions">
+      <button class="btn-secondary" id="confirm-cancel">Cancelar</button>
+      <button class="btn-danger" id="confirm-ok">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
