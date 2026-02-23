@@ -1,16 +1,16 @@
 /* ════════════════════════════════════════
    BOARD.JS — Kanban board logic
-   v3.0 — Quick Filters + Smart Sort + Daily Summary
+   v3.1 — Multi-assignee support
    ════════════════════════════════════════ */
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let allTasks        = [];
 let draggedId       = null;
-let activeChip      = 'all';   // current quick filter chip
-let smartSortActive = false;   // smart sort toggle
-let currentUser     = '';      // logged-in user's name
+let activeChip      = 'all';
+let smartSortActive = false;
+let currentUser     = '';
 
-// ── DARK MODE (runs before DOMContentLoaded to prevent flash) ─────────────────
+// ── DARK MODE ─────────────────────────────────────────────────────────────────
 (function initTheme() {
   if (localStorage.getItem('tm-theme') === 'dark') document.body.classList.add('dark');
   document.addEventListener('DOMContentLoaded', updateThemeIcon);
@@ -49,7 +49,78 @@ function getInitials(name) {
 
 function buildAvatar(name) {
   if (!name) return '';
-  return `<span class="avatar" style="background:${nameToColor(name)}" data-name="${escHtml(name)}">${getInitials(name)}</span>`;
+  return `<span class="avatar" style="background:${nameToColor(name)}" title="${escHtml(name)}">${getInitials(name)}</span>`;
+}
+
+/** Render a row of avatars (up to 3 + overflow badge) for a participants array. */
+function buildAvatarRow(participants) {
+  if (!participants || participants.length === 0) return '';
+  const MAX = 3;
+  const shown   = participants.slice(0, MAX);
+  const overflow = participants.length - MAX;
+  let html = shown.map(n => buildAvatar(n)).join('');
+  if (overflow > 0) {
+    html += `<span class="avatar avatar-overflow" title="${escHtml(participants.slice(MAX).join(', '))}">+${overflow}</span>`;
+  }
+  return `<span class="avatar-row">${html}</span>`;
+}
+
+// ── PARTICIPANT TAG INPUT ─────────────────────────────────────────────────────
+// A lightweight "tags" widget built directly into the existing form-input style.
+// Uses a hidden input + visible tag chips + text field.
+
+let _participantTags = []; // current tags in the modal
+
+function initParticipantInput(initialTags = []) {
+  _participantTags = [...initialTags];
+  renderParticipantTags();
+}
+
+function renderParticipantTags() {
+  const container = document.getElementById('participantTags');
+  if (!container) return;
+  container.innerHTML =
+    _participantTags.map((name, i) => `
+      <span class="ptag">
+        <span class="ptag-av" style="background:${nameToColor(name)}">${getInitials(name)}</span>
+        ${escHtml(name)}
+        <button type="button" class="ptag-rm" onclick="removeParticipant(${i})" title="Quitar">×</button>
+      </span>
+    `).join('') +
+    `<input type="text" id="participantInput" class="ptag-input"
+       placeholder="${_participantTags.length === 0 ? 'Nombre y Enter...' : ''}"
+       onkeydown="onParticipantKey(event)"
+       onblur="commitParticipantInput()" />`;
+
+  // Focus the text input
+  const inp = document.getElementById('participantInput');
+  if (inp) inp.focus();
+}
+
+function onParticipantKey(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    commitParticipantInput();
+  } else if (e.key === 'Backspace' && e.target.value === '' && _participantTags.length > 0) {
+    removeParticipant(_participantTags.length - 1);
+  }
+}
+
+function commitParticipantInput() {
+  const inp = document.getElementById('participantInput');
+  if (!inp) return;
+  const val = inp.value.trim();
+  if (val && !_participantTags.includes(val)) {
+    _participantTags.push(val);
+    renderParticipantTags();
+  } else if (val) {
+    inp.value = '';
+  }
+}
+
+function removeParticipant(index) {
+  _participantTags.splice(index, 1);
+  renderParticipantTags();
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -67,7 +138,6 @@ async function checkAuth() {
     if (!res.ok) { window.location.href = '/pages/index.html'; return; }
     const data = await res.json();
     currentUser = data.userName || '';
-    // Persist for other pages (dashboard)
     localStorage.setItem('tm-user', currentUser);
     document.getElementById('userChip').textContent  = currentUser;
     document.getElementById('teamLabel').textContent = data.teamName || 'Task Manager';
@@ -105,7 +175,7 @@ function buildFilterParams() {
   const assigned = document.getElementById('filterAssigned').value;
   if (search)   params.set('search', search);
   if (area)     params.set('area', area);
-  if (assigned) params.set('assigned_to', assigned);
+  if (assigned) params.set('participant', assigned);
   return params;
 }
 
@@ -114,27 +184,22 @@ function renderDailySummary(tasks) {
   const panel = document.getElementById('dailySummary');
   if (!panel) return;
 
-  const today    = todayStr();
-  const name     = currentUser || localStorage.getItem('tm-user') || 'vos';
-  // Only active tasks (not DONE) assigned to current user
-  const myActive = tasks.filter(t => t.status !== 'DONE' &&
-    normalizeStr(t.assigned_to) === normalizeStr(currentUser));
+  const today = todayStr();
+  const name  = currentUser || localStorage.getItem('tm-user') || 'vos';
 
-  const myOverdue  = myActive.filter(t => t.due_date && t.due_date < today);
-  const myToday    = myActive.filter(t => t.due_date === today);
-  // "Urgentes" = tareas en la primera mitad de prioridad (priority <= 2 o prioridad baja numérica)
-  // Dado que no hay campo "priority alta", usamos las vencidas + hoy como urgentes
-  const myUrgent   = myActive.filter(t => t.due_date && t.due_date <= today);
+  // "mine" = tasks where current user is a participant
+  const myActive  = tasks.filter(t => t.status !== 'DONE' && isParticipant(t, currentUser));
+  const myOverdue = myActive.filter(t => t.due_date && t.due_date < today);
+  const myToday   = myActive.filter(t => t.due_date === today);
+  const myUrgent  = myActive.filter(t => t.due_date && t.due_date <= today);
 
-  // Build stat items
   const stats = [
-    { label: 'Activas',   value: myActive.length,  icon: '📋', color: 'var(--text)' },
-    { label: 'Vencidas',  value: myOverdue.length,  icon: '🔴', color: '#dc2626' },
-    { label: 'Hoy',       value: myToday.length,    icon: '📅', color: '#d97706' },
-    { label: 'Urgentes',  value: myUrgent.length,   icon: '⚡', color: '#7c3aed' },
+    { label: 'Activas',  value: myActive.length,  icon: '📋', color: 'var(--text)' },
+    { label: 'Vencidas', value: myOverdue.length,  icon: '🔴', color: '#dc2626' },
+    { label: 'Hoy',      value: myToday.length,    icon: '📅', color: '#d97706' },
+    { label: 'Urgentes', value: myUrgent.length,   icon: '⚡', color: '#7c3aed' },
   ];
 
-  // Greeting based on time
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
 
@@ -161,17 +226,14 @@ function renderDailySummary(tasks) {
 }
 
 // ── QUICK FILTER CHIPS ────────────────────────────────────────────────────────
-// Called when user clicks a chip
 function setChip(chip) {
   activeChip = chip;
-  // Update chip active state
   document.querySelectorAll('.chip').forEach(el => {
     el.classList.toggle('chip-active', el.dataset.chip === chip);
   });
   applyChipAndRender();
 }
 
-// Filter allTasks by active chip, then render
 function applyChipAndRender() {
   const today    = todayStr();
   const userName = currentUser || localStorage.getItem('tm-user') || '';
@@ -179,23 +241,19 @@ function applyChipAndRender() {
 
   switch (activeChip) {
     case 'mine':
-      filtered = allTasks.filter(t =>
-        normalizeStr(t.assigned_to) === normalizeStr(userName));
+      filtered = allTasks.filter(t => isParticipant(t, userName));
       break;
     case 'urgent':
-      // Treat vencidas + hoy as urgent (no priority field in schema)
-      filtered = allTasks.filter(t =>
-        t.status !== 'DONE' && t.due_date && t.due_date <= today);
+      filtered = allTasks.filter(t => t.status !== 'DONE' && t.due_date && t.due_date <= today);
       break;
     case 'overdue':
-      filtered = allTasks.filter(t =>
-        t.status !== 'DONE' && t.due_date && t.due_date < today);
+      filtered = allTasks.filter(t => t.status !== 'DONE' && t.due_date && t.due_date < today);
       break;
     case 'today':
       filtered = allTasks.filter(t => t.due_date === today);
       break;
     case 'unassigned':
-      filtered = allTasks.filter(t => !t.assigned_to || t.assigned_to.trim() === '');
+      filtered = allTasks.filter(t => !t.participants || t.participants.length === 0);
       break;
     case 'all':
     default:
@@ -204,6 +262,13 @@ function applyChipAndRender() {
   }
 
   renderBoard(filtered);
+}
+
+/** Returns true if `userName` appears in task.participants (case-insensitive). */
+function isParticipant(task, userName) {
+  if (!userName) return false;
+  const norm = normalizeStr(userName);
+  return (task.participants || []).some(p => normalizeStr(p) === norm);
 }
 
 // ── SMART SORT ────────────────────────────────────────────────────────────────
@@ -218,14 +283,12 @@ function setupSmartSortToggle() {
   });
 }
 
-// Smart sort: vencidas > hoy > próximas > sin fecha, dentro de cada columna
 function smartSort(tasks) {
   const today = todayStr();
   return [...tasks].sort((a, b) => {
     const scoreA = getSortScore(a, today);
     const scoreB = getSortScore(b, today);
     if (scoreA !== scoreB) return scoreA - scoreB;
-    // Secondary: by due_date ascending (nulls last)
     if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
     if (a.due_date) return -1;
     if (b.due_date) return 1;
@@ -234,10 +297,10 @@ function smartSort(tasks) {
 }
 
 function getSortScore(task, today) {
-  if (!task.due_date)                          return 4; // sin fecha
-  if (task.due_date < today)                   return 1; // vencidas
-  if (task.due_date === today)                 return 2; // hoy
-  return 3;                                              // próximas
+  if (!task.due_date)        return 4;
+  if (task.due_date < today) return 1;
+  if (task.due_date === today) return 2;
+  return 3;
 }
 
 // ── RENDER BOARD ──────────────────────────────────────────────────────────────
@@ -269,15 +332,13 @@ function renderBoard(tasks) {
 }
 
 function renderCard(task) {
-  const isDone     = task.status === 'DONE';
-  const today      = todayStr();
-  const overdue    = task.due_date && !isDone && task.due_date < today;
-  const isToday    = task.due_date === today && !isDone;
-  const areaLabel  = { PRODUCCION: 'Producción', CONTENIDO: 'Contenido', DISENO: 'Diseño', ADMIN: 'Admin' };
-  const avatarHtml = task.assigned_to ? buildAvatar(task.assigned_to) : '';
-
-  // Highlight card if assigned to current user
-  const isMine = normalizeStr(task.assigned_to) === normalizeStr(currentUser);
+  const isDone      = task.status === 'DONE';
+  const today       = todayStr();
+  const overdue     = task.due_date && !isDone && task.due_date < today;
+  const isToday     = task.due_date === today && !isDone;
+  const areaLabel   = { PRODUCCION: 'Producción', CONTENIDO: 'Contenido', DISENO: 'Diseño', ADMIN: 'Admin' };
+  const avatarHtml  = buildAvatarRow(task.participants);
+  const isMine      = isParticipant(task, currentUser);
 
   return `
     <div class="task-card ${isDone ? 'done' : ''} ${isMine ? 'my-task' : ''}"
@@ -316,12 +377,15 @@ function renderCard(task) {
 function updateAssigneeFilter(tasks) {
   const select  = document.getElementById('filterAssigned');
   const current = select.value;
-  const names   = [...new Set(tasks.map(t => t.assigned_to).filter(Boolean))].sort();
+  // Collect all participant names across all tasks
+  const names = [...new Set(
+    tasks.flatMap(t => t.participants || [])
+  )].sort();
   select.innerHTML = '<option value="">Todos los asignados</option>' +
     names.map(n => `<option value="${escHtml(n)}" ${n === current ? 'selected' : ''}>${escHtml(n)}</option>`).join('');
 }
 
-// ── FILTERS (search + dropdowns) ──────────────────────────────────────────────
+// ── FILTERS ───────────────────────────────────────────────────────────────────
 function setupFilters() {
   let searchTimeout;
   document.getElementById('searchInput').addEventListener('input', () => {
@@ -347,9 +411,9 @@ function openModal(taskId = null) {
     document.getElementById('taskDescription').value     = t.description || '';
     document.getElementById('taskArea').value            = t.area;
     document.getElementById('taskStatus').value          = t.status;
-    document.getElementById('taskAssigned').value        = t.assigned_to || '';
     document.getElementById('taskDueDate').value         = t.due_date || '';
     document.getElementById('saveBtn').textContent       = 'Guardar cambios';
+    initParticipantInput(t.participants || []);
   } else {
     document.getElementById('modalTitle').textContent    = 'Nueva tarea';
     document.getElementById('taskId').value              = '';
@@ -357,10 +421,10 @@ function openModal(taskId = null) {
     document.getElementById('taskDescription').value     = '';
     document.getElementById('taskArea').value            = 'ADMIN';
     document.getElementById('taskStatus').value          = 'TODO';
-    // Pre-fill assigned to current user for convenience
-    document.getElementById('taskAssigned').value        = currentUser;
     document.getElementById('taskDueDate').value         = '';
     document.getElementById('saveBtn').textContent       = 'Guardar tarea';
+    // Pre-fill current user as first participant
+    initParticipantInput(currentUser ? [currentUser] : []);
   }
 
   overlay.classList.remove('closing');
@@ -394,11 +458,14 @@ function showModalError(msg) {
   const el = document.getElementById('modalError');
   el.textContent = msg;
   el.classList.remove('visible');
-  void el.offsetWidth; // retrigger animation
+  void el.offsetWidth;
   el.classList.add('visible');
 }
 
 async function saveTask() {
+  // Commit any pending text in the participant input
+  commitParticipantInput();
+
   clearModalError();
   const id      = document.getElementById('taskId').value;
   const title   = document.getElementById('taskTitle').value.trim();
@@ -408,11 +475,11 @@ async function saveTask() {
 
   const body = {
     title,
-    description: document.getElementById('taskDescription').value.trim(),
-    area:        document.getElementById('taskArea').value,
-    status:      document.getElementById('taskStatus').value,
-    assigned_to: document.getElementById('taskAssigned').value.trim(),
-    due_date:    document.getElementById('taskDueDate').value || null,
+    description:    document.getElementById('taskDescription').value.trim(),
+    area:           document.getElementById('taskArea').value,
+    status:         document.getElementById('taskStatus').value,
+    participantIds: _participantTags,
+    due_date:       document.getElementById('taskDueDate').value || null,
   };
 
   saveBtn.disabled    = true;
@@ -491,7 +558,6 @@ async function markDone(id) {
 
 // ── DRAG & DROP ───────────────────────────────────────────────────────────────
 function onDragStart(e) {
-  // Disable drag when smart sort is active (auto-order manages positions)
   if (smartSortActive) { e.preventDefault(); return; }
   draggedId = e.currentTarget.dataset.id;
   e.currentTarget.classList.add('dragging');
@@ -556,13 +622,11 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
 }
 
-// Returns today as "YYYY-MM-DD" in local time
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-// Case-insensitive, trimmed comparison for names
 function normalizeStr(s) {
   return (s || '').trim().toLowerCase();
 }

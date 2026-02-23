@@ -30,59 +30,75 @@ router.get('/', (req, res) => {
     ).all();
 
     const topPriorityTasks = db.prepare(
-      "SELECT id, title, area, status, assigned_to, due_date FROM tasks WHERE status IN ('TODO','DOING') ORDER BY priority ASC LIMIT 8"
+      "SELECT id, title, area, status, due_date FROM tasks WHERE status IN ('TODO','DOING') ORDER BY priority ASC LIMIT 8"
     ).all();
+    // Attach participants to each task
+    const getParticipants = db.prepare('SELECT name FROM task_participants WHERE task_id = ? ORDER BY name');
+    for (const t of topPriorityTasks) {
+      t.participants = getParticipants.all(t.id).map(r => r.name);
+    }
 
-    const topAssignees = db.prepare(
-      "SELECT assigned_to, COUNT(*) as count FROM tasks WHERE status IN ('TODO','DOING') AND assigned_to IS NOT NULL AND assigned_to != '' GROUP BY assigned_to ORDER BY count DESC LIMIT 8"
-    ).all();
+    // Top assignees — now based on task_participants table
+    const topAssignees = db.prepare(`
+      SELECT tp.name AS assigned_to, COUNT(*) as count
+      FROM   task_participants tp
+      JOIN   tasks t ON t.id = tp.task_id
+      WHERE  t.status IN ('TODO','DOING')
+      GROUP BY tp.name
+      ORDER BY count DESC
+      LIMIT 8
+    `).all();
 
     const recentTasks = db.prepare(
-      "SELECT id, title, area, status, assigned_to, created_at FROM tasks WHERE date(created_at) >= ? ORDER BY created_at DESC LIMIT 10"
+      "SELECT id, title, area, status, created_at FROM tasks WHERE date(created_at) >= ? ORDER BY created_at DESC LIMIT 10"
     ).all(sevenDaysAgo);
+    for (const t of recentTasks) {
+      t.participants = getParticipants.all(t.id).map(r => r.name);
+    }
 
     const completedThisWeek = db.prepare(
       "SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE' AND date(updated_at) >= ?"
     ).get(sevenDaysAgo)?.count || 0;
 
     // ── Completion-time metrics ─────────────────────────────────────────────
-    // Only tasks with BOTH timestamps — data is trustworthy
     const completedTasks = db.prepare(`
-      SELECT id, title, assigned_to, area, created_at, completed_at
+      SELECT id, title, area, created_at, completed_at
       FROM   tasks
       WHERE  status       = 'DONE'
         AND  completed_at IS NOT NULL
         AND  created_at   IS NOT NULL
     `).all();
+    for (const t of completedTasks) {
+      t.participants = getParticipants.all(t.id).map(r => r.name);
+    }
 
-    // Attach durationMs to each row (JS arithmetic, no SQLite date math quirks)
     const withDuration = completedTasks
       .map(t => {
         const ms = new Date(t.completed_at) - new Date(t.created_at);
-        return ms >= 0 ? { ...t, durationMs: ms } : null; // skip bad data
+        return ms >= 0 ? { ...t, durationMs: ms } : null;
       })
       .filter(Boolean);
 
-    // Global average
     const avgCompletionTimeMs = withDuration.length
       ? Math.round(withDuration.reduce((s, t) => s + t.durationMs, 0) / withDuration.length)
       : null;
 
-    // Median
     const medianCompletionTimeMs = calcMedian(withDuration.map(t => t.durationMs));
 
-    // By assignee
+    // By participant (was: by assignee)
     const byAssigneeMap = {};
     for (const t of withDuration) {
-      const key = t.assigned_to || '(sin asignar)';
-      if (!byAssigneeMap[key]) byAssigneeMap[key] = [];
-      byAssigneeMap[key].push(t.durationMs);
+      const names = t.participants.length ? t.participants : ['(sin asignar)'];
+      for (const name of names) {
+        if (!byAssigneeMap[name]) byAssigneeMap[name] = [];
+        byAssigneeMap[name].push(t.durationMs);
+      }
     }
     const avgCompletionTimeByAssignee = Object.entries(byAssigneeMap).map(([name, durations]) => ({
       name,
       avgMs: Math.round(durations.reduce((s, d) => s + d, 0) / durations.length),
       count: durations.length,
-    })).sort((a, b) => a.avgMs - b.avgMs); // fastest first
+    })).sort((a, b) => a.avgMs - b.avgMs);
 
     // By area
     const byAreaMap = {};
@@ -96,10 +112,9 @@ router.get('/', (req, res) => {
       count: durations.length,
     })).sort((a, b) => a.avgMs - b.avgMs);
 
-    // Slowest and fastest completed tasks (top 10 each)
-    const sorted            = [...withDuration].sort((a, b) => b.durationMs - a.durationMs);
-    const slowestCompletedTasks  = sorted.slice(0, 10);
-    const fastestCompletedTasks  = sorted.slice(-10).reverse();
+    const sorted               = [...withDuration].sort((a, b) => b.durationMs - a.durationMs);
+    const slowestCompletedTasks = sorted.slice(0, 10);
+    const fastestCompletedTasks = sorted.slice(-10).reverse();
 
     res.json({
       ok: true,
@@ -133,7 +148,6 @@ router.get('/', (req, res) => {
   }
 });
 
-// ── Utils ───────────────────────────────────────────────────────────────────
 function calcMedian(arr) {
   if (!arr.length) return null;
   const sorted = [...arr].sort((a, b) => a - b);

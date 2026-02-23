@@ -57,7 +57,6 @@ async function initDB() {
   }
 
   // ── Backfill: mark existing DONE tasks with a best-guess completed_at ──────
-  // We use updated_at as a proxy (best we can do for old rows)
   const backfillCount = db.prepare(`
     UPDATE tasks
     SET    completed_at = updated_at
@@ -67,6 +66,31 @@ async function initDB() {
 
   if (backfillCount > 0) {
     console.log(`✅ Migration: backfilled completed_at for ${backfillCount} existing DONE tasks`);
+  }
+
+  // ── Multi-assignee: task_participants pivot table ──────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_participants (
+      task_id  TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      name     TEXT NOT NULL,
+      PRIMARY KEY (task_id, name)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tp_task_id ON task_participants(task_id);
+  `);
+
+  // ── Migration: copy existing assigned_to → task_participants ───────────────
+  const migratedCount = db.prepare(`
+    INSERT OR IGNORE INTO task_participants (task_id, name)
+    SELECT id, assigned_to
+    FROM   tasks
+    WHERE  assigned_to IS NOT NULL
+    AND    assigned_to != ''
+    AND    id NOT IN (SELECT task_id FROM task_participants)
+  `).run().changes;
+
+  if (migratedCount > 0) {
+    console.log(`✅ Migration: moved ${migratedCount} existing assignees into task_participants`);
   }
 
   // ── Password setup ─────────────────────────────────────────────────────────
@@ -90,7 +114,7 @@ async function initDB() {
     }
   }
 
-  console.log(`💾 Database ready: ${DB_PATH}`);
+  console.log(`\`💾 Database ready: ${DB_PATH}`);
   return db;
 }
 

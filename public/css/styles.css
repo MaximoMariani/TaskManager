@@ -1323,3 +1323,109 @@ body.dark .smart-sort-active {
   .ct-table-header,
   .ct-table-row { grid-template-columns: 1.4fr 1.2fr .5fr; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   MULTI-PARTICIPANT TAG INPUT
+   ══════════════════════════════════════════════════════════════ */
+
+/* Tag container — looks like a form-input but wraps tags */
+.ptag-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  min-height: 40px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg, var(--surface));
+  cursor: text;
+  transition: border-color .15s;
+}
+.ptag-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+/* Individual tag chip */
+.ptag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 4px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.ptag-av {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.ptag-rm {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: .6;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  margin-left: 1px;
+}
+.ptag-rm:hover { opacity: 1; }
+
+/* Invisible text input inside the tag wrap */
+.ptag-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  min-width: 120px;
+  flex: 1;
+  padding: 2px 0;
+}
+.ptag-input::placeholder { color: var(--text-muted); }
+
+.ptag-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* Avatar row in cards */
+.avatar-row {
+  display: inline-flex;
+  align-items: center;
+}
+.avatar-row .avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+  margin-right: -5px;
+  border: 2px solid var(--surface);
+  box-sizing: content-box;
+  position: relative;
+}
+.avatar-overflow {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+  background: var(--border) !important;
+  color: var(--text-sub) !important;
+  margin-right: -5px;
+  border: 2px solid var(--surface);
+  box-sizing: content-box;
+}

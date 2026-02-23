@@ -223,7 +223,7 @@ function renderCTRanked(elId, tasks, type) {
         <div class="ct-ranked-title" title="${escHtml(t.title)}">${escHtml(t.title)}</div>
         <div class="ct-ranked-meta">
           <span class="area-chip area-${t.area}" style="font-size:9px;padding:1px 6px">${AREA_LABELS[t.area] || t.area}</span>
-          ${t.assigned_to ? `<span class="ct-ranked-person">${escHtml(t.assigned_to)}</span>` : ''}
+          ${(t.participants||[]).length ? `<span class="ct-ranked-person">${escHtml((t.participants).join(', '))}</span>` : ''}
         </div>
       </div>
       <span class="ct-ranked-dur" style="color:${color}">${formatDuration(t.durationMs)}</span>
@@ -311,7 +311,7 @@ function renderListPriority(tasks) {
       <span class="area-chip area-${t.area}" style="font-size:10px">${AREA_LABELS[t.area] || t.area}</span>
       <div class="list-item-main">
         <div class="list-item-title">${escHtml(t.title)}</div>
-        ${t.assigned_to ? `<div class="list-item-sub">${escHtml(t.assigned_to)}</div>` : ''}
+        ${(t.participants||[]).length ? `<div class="list-item-sub">${escHtml((t.participants).join(', '))}</div>` : ''}
       </div>
       ${t.due_date ? `<span style="font-size:11px;color:${overdue ? '#dc2626' : 'var(--text-sub)'}">${formatDate(t.due_date)}</span>` : ''}
     </div>`;
@@ -342,7 +342,7 @@ function renderListRecent(tasks) {
       <span class="area-chip area-${t.area}" style="font-size:10px">${AREA_LABELS[t.area] || t.area}</span>
       <div class="list-item-main">
         <div class="list-item-title">${escHtml(t.title)}</div>
-        ${t.assigned_to ? `<div class="list-item-sub">${escHtml(t.assigned_to)}</div>` : ''}
+        ${(t.participants||[]).length ? `<div class="list-item-sub">${escHtml((t.participants).join(', '))}</div>` : ''}
       </div>
       <span style="font-size:11px;color:var(--text-sub);flex-shrink:0">${formatDate(t.created_at)}</span>
     </div>`).join('');
