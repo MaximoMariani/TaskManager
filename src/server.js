@@ -8,6 +8,7 @@ const { initDB } = require('./db/database');
 const authRoutes  = require('./routes/auth');
 const taskRoutes  = require('./routes/tasks');
 const statsRoutes = require('./routes/stats');
+const productionsRoutes = require('./routes/productions');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +37,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use('/api/auth',  authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/productions', productionsRoutes);
 
 // For non-API routes, serve the SPA shell
 app.get('*', (req, res) => {

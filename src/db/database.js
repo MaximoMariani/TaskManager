@@ -93,6 +93,21 @@ async function initDB() {
     console.log(`✅ Migration: moved ${migratedCount} existing assignees into task_participants`);
   }
 
+
+  // ── Productions table ─────────────────────────────────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS productions (
+      id                 TEXT PRIMARY KEY,
+      producto           TEXT NOT NULL,
+      codigo_produccion  TEXT NOT NULL,
+      fecha_estimada     TEXT NOT NULL,
+      cantidad_unidades  INTEGER NOT NULL DEFAULT 0,
+      created_by         TEXT,
+      created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_prod_fecha ON productions(fecha_estimada);
+  `);
   // ── Password setup ─────────────────────────────────────────────────────────
   const passwordToHash = process.env.TEAM_PASSWORD || 'changeme';
   if (!process.env.TEAM_PASSWORD) {
