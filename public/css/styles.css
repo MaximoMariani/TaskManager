@@ -297,6 +297,8 @@ body.dark .search-input:focus { box-shadow: 0 0 0 3px rgba(255,255,255,.07); }
 .btn-card-action:hover { background: var(--bg); color: var(--text); transform: scale(1.1); }
 .btn-card-action.delete:hover { background: #fef2f2; color: #dc2626; }
 body.dark .btn-card-action.delete:hover { background: #2c1516; }
+.btn-card-action.done:hover { background: #f0fdf4; color: #16a34a; }
+body.dark .btn-card-action.done:hover { background: #14271a; color: #4ade80; }
 
 .card-desc {
   font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 9px;

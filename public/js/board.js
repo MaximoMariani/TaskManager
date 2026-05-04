@@ -346,22 +346,22 @@ function renderCard(task) {
          data-id="${task.id}"
          data-status="${task.status}"
          data-priority="${task.priority}">
-      <div class="task-card-top">
-        <div class="task-title">${escHtml(task.title)}</div>
-        <div class="task-actions">
+      <div class="card-header">
+        <div class="card-title">${escHtml(task.title)}</div>
+        <div class="card-actions">
           ${!isDone ? `
-          <button class="action-btn done-btn" title="Marcar como completada" onclick="markDone('${task.id}')">
+          <button class="btn-card-action done" title="Marcar como completada" onclick="markDone('${task.id}')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </button>` : ''}
-          <button class="action-btn" title="Editar" onclick="openModal('${task.id}')">
+          <button class="btn-card-action" title="Editar" onclick="openModal('${task.id}')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button class="action-btn delete-btn" title="Eliminar" onclick="openDelete('${task.id}')">
+          <button class="btn-card-action delete" title="Eliminar" onclick="openDelete('${task.id}')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           </button>
         </div>
       </div>
-      ${task.description ? `<div class="task-desc">${escHtml(task.description)}</div>` : ''}
+      ${task.description ? `<div class="card-desc">${escHtml(task.description)}</div>` : ''}
       <div class="task-meta">
         <span class="area-chip area-${task.area}">${areaLabel[task.area] || task.area}</span>
         ${avatarHtml}
